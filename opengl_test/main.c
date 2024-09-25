@@ -28,14 +28,18 @@ typedef struct sosiska {
 	double xCoord;
 	double yCoord;
 	double speed;
-} OBJECT;
+	time_t time_of_create;
+
+	struct Object* pLeft;
+	struct Object* pRight;
+} Object;
 
 // звезды - фон
 #define MAX_STARS 300 // количество звезд, которые могут существовать одновременно
-OBJECT stars[MAX_STARS];
+Object stars[MAX_STARS]; // нет необходимости делать дерево, т.к. нет поиска
 int num_of_stars = 0;
-//double stars[MAX_STARS][3]; //первые два значения - координата по x и y, третье - скорость (у каждой она будет своя)
 double speed_of_star = 1.0; // коэффицент изменения скорости звезд
+//double stars[MAX_STARS][3]; //первые два значения - координата по x и y, третье - скорость (у каждой она будет своя)
 
 //координаты носа коробля
 double xCoord = -65;
@@ -51,14 +55,17 @@ double speed_of_bullet = 1.5;
 time_t last_shooted_bullet; // время (будет создаваться как clock()) последней выстреленной пули
 							// нужно, чтобы сделать так, чтоб пули не летели одним потоком (ограничить количество пуль в ед. времени)
 
+
 // астероиды - то, что уничтожаем
-#define MAX_ASTEROIDS 100 // количество астероидов, которые могут существовать одновременно
+Object* asteroid_tree = NULL;
 int num_of_asteroids = 0;
-double asteroids[MAX_ASTEROIDS][4]; //первые два значения - координата по x и y, 3 - скорость (у каждой она будет своя), 4 - тип астероида
 double speed_of_asteroids = 2.0; // коэффицент изменения скорости астероидов
 double size_first_asteroid = 7;
 int posibility_of_spawn_asteroids = 30; // меняется в spaceship_move (в будующем может быть в клавиатуре)
-
+/*
+#define MAX_ASTEROIDS 100 // количество астероидов, которые могут существовать одновременно
+double asteroids[MAX_ASTEROIDS][4]; //первые два значения - координата по x и y, 3 - скорость (у каждой она будет своя), 4 - тип астероида
+*/
 
 int difficulty = 0; // 0 - меню выбора сложности, 1 - easy, 2 - medium, 3 - hard, 4 - меню проигрыша
 int choose = 1; //нужно для выбора в меню. 1 - подсвечивает easy, 2 - medium, 3 - hard 
@@ -76,6 +83,43 @@ int posibility_of_spawn_bonus = 100;
 time_t last_taken_bonus; // нужно, чтоб проходило какое-то время после потери жизни. эта переменная будет отсчитывать это время
 #define CAN_TAKE_NEW_BONUS 100 // количество тиков, нужное для того, чтобы подобрать новый бонус
 double time_x2_bonus = 0; // время действия x2 бонуса
+
+Object* create_new_Object(Object item) {
+	Object* p = (Object*)malloc(sizeof(Object));
+	p->xCoord = item.xCoord;
+	p->yCoord = item.yCoord;
+	p->speed = item.speed;
+
+	p->pLeft = NULL;
+	p->pRight = NULL;
+	return p;
+}
+
+// будем строить дерево по y координате, т.к. по ней потом будем искать
+void add_to_ast_tree(Object item) {
+	if (asteroid_tree != NULL) { // сначала наиболее вероятный случай для эффективности
+		Object* p = asteroid_tree;
+		while (1) {
+			if (p->yCoord >= item.yCoord) {
+				if (p->pLeft == NULL) {
+					p->pLeft = create_new_Object(item);
+					break;
+				}
+				p = p->pLeft;
+			}
+			else {
+				if (p->pRight == NULL) {
+					p->pRight = create_new_Object(item);
+					break;
+				}
+				p = p->pRight;
+			}
+		}
+	}
+	else {
+		asteroid_tree = create_new_Object(item);
+	}
+}
 
 void draw_bonuses() {
 	if ((rand() % posibility_of_spawn_bonus) == 9) {   //выбираем случайное время, при достижении которого генерируется звезда. чем больше значение после %, тем ниже вероятность появления
@@ -163,46 +207,30 @@ void draw_bonuses() {
 
 }
 
-void asteroid_type(int i) {
-	//if (asteroids[i][3] == 1) {
+void draw_asteroids(Object* p) {
+	draw_asteroids(p->pLeft);
+	draw_asteroids(p->pRight);
+
+	p->xCoord -= p->speed;
 	
 	glBegin(GL_POLYGON);
-	glColor3f(0.5, 0.5, 0.5); glVertex3f(asteroids[i][0] - size_first_asteroid, asteroids[i][1] + size_first_asteroid / 2, 1);
-	glColor3f(0.5, 0.5, 0.5); glVertex3f(asteroids[i][0] - size_first_asteroid, asteroids[i][1] - size_first_asteroid / 2, 1);
-	glColor3f(0.5, 0.5, 0.5); glVertex3f(asteroids[i][0] - size_first_asteroid / 2, asteroids[i][1] - size_first_asteroid, 1);
-	glColor3f(0.7, 0.7, 0.7); glVertex3f(asteroids[i][0] + size_first_asteroid / 2, asteroids[i][1] - size_first_asteroid, 1);
-	glColor3f(0.7, 0.7, 0.7); glVertex3f(asteroids[i][0] + size_first_asteroid, asteroids[i][1] - size_first_asteroid / 2, 1);
-	glColor3f(0.7, 0.7, 0.7); glVertex3f(asteroids[i][0] + size_first_asteroid, asteroids[i][1] + size_first_asteroid / 2, 1);
-	glColor3f(0.5, 0.5, 0.5); glVertex3f(asteroids[i][0] + size_first_asteroid / 2, asteroids[i][1] + size_first_asteroid, 1);
-	glColor3f(0.5, 0.5, 0.5); glVertex3f(asteroids[i][0] - size_first_asteroid / 2, asteroids[i][1] + size_first_asteroid, 1);
+	glColor3f(0.5, 0.5, 0.5); glVertex3f(p->xCoord - size_first_asteroid, p->yCoord + size_first_asteroid / 2, 1);
+	glColor3f(0.5, 0.5, 0.5); glVertex3f(p->xCoord - size_first_asteroid, p->yCoord - size_first_asteroid / 2, 1);
+	glColor3f(0.5, 0.5, 0.5); glVertex3f(p->xCoord - size_first_asteroid / 2, p->yCoord - size_first_asteroid, 1);
+	glColor3f(0.7, 0.7, 0.7); glVertex3f(p->xCoord + size_first_asteroid / 2, p->yCoord - size_first_asteroid, 1);
+	glColor3f(0.7, 0.7, 0.7); glVertex3f(p->xCoord + size_first_asteroid, p->yCoord - size_first_asteroid / 2, 1);
+	glColor3f(0.7, 0.7, 0.7); glVertex3f(p->xCoord + size_first_asteroid, p->yCoord + size_first_asteroid / 2, 1);
+	glColor3f(0.5, 0.5, 0.5); glVertex3f(p->xCoord + size_first_asteroid / 2, p->yCoord + size_first_asteroid, 1);
+	glColor3f(0.5, 0.5, 0.5); glVertex3f(p->xCoord - size_first_asteroid / 2, p->yCoord + size_first_asteroid, 1);
 	glEnd();
-	
+
 	glPointSize(size_first_asteroid * 5 / 7);
 	glBegin(GL_POINTS);
-	glColor3f(0.4, 0.4, 0.4); glVertex3f(asteroids[i][0] - size_first_asteroid / 2, asteroids[i][1] - size_first_asteroid / 4, 0);
-	glColor3f(0.35, 0.35, 0.35); glVertex3f(asteroids[i][0] - size_first_asteroid / 4, asteroids[i][1] - size_first_asteroid / 2, 0);
-	glColor3f(0.35, 0.35, 0.35); glVertex3f(asteroids[i][0] - size_first_asteroid / 3, asteroids[i][1] + size_first_asteroid / 2, 0);
-	glColor3f(0.55, 0.55, 0.55); glVertex3f(asteroids[i][0] + size_first_asteroid / 1.9, asteroids[i][1] + size_first_asteroid / 3, 0);
+	glColor3f(0.4, 0.4, 0.4); glVertex3f(p->xCoord - size_first_asteroid / 2, p->yCoord - size_first_asteroid / 4, 0);
+	glColor3f(0.35, 0.35, 0.35); glVertex3f(p->xCoord - size_first_asteroid / 4, p->yCoord - size_first_asteroid / 2, 0);
+	glColor3f(0.35, 0.35, 0.35); glVertex3f(p->xCoord - size_first_asteroid / 3, p->yCoord + size_first_asteroid / 2, 0);
+	glColor3f(0.55, 0.55, 0.55); glVertex3f(p->xCoord + size_first_asteroid / 1.9, p->yCoord + size_first_asteroid / 3, 0);
 	glEnd();
-	
-	//}
-	
-}
-
-void draw_asteroids() {
-	if ((rand() % posibility_of_spawn_asteroids) == 9) {   //выбираем случайное время, при достижении которого генерируется астероид
-		double y = ((rand() % 16) * 10) - 70; //выбирается случайное значение высоты для появившегося астероида. 70 и 16 (вместо 90 и 18) - немного сдвигаем вниз, чтоб не залезали на интерфейс
-		asteroids[num_of_asteroids][0] = 100;  //начальная координата по х. спавним справа от экрана
-		asteroids[num_of_asteroids][1] = y;
-		asteroids[num_of_asteroids][2] = (speed_of_asteroids * (rand() % 10)) / 10 + 0.1;  // скорость. добавляем константу, чтоб те астероиды, у которых скорость выпала 0 тоже двигались.
-		asteroids[num_of_asteroids][3] = rand() % 5;
-		num_of_asteroids++;
-	}
-	if (num_of_asteroids > MAX_ASTEROIDS - 1) num_of_asteroids = 0;
-	for (int i = 0; i < MAX_ASTEROIDS; i++) {
-		asteroids[i][0] -= asteroids[i][2];
-		asteroid_type(i);
-	}
 }
 
 void draw_stars() { //ф-я которая создаёт звезды на фоне.
@@ -496,6 +524,40 @@ void check_hitted_asteroid() { // проверяет попала ли пуля 
 }
 
 void check_hitted_spaceship() {
+	Object* p = asteroid_tree;
+	while (p != NULL) {
+		if ((p->yCoord - size_first_asteroid - size_of_spaceship <= yCoord) &&
+			(p->yCoord + size_first_asteroid + size_of_spaceship >= yCoord)) {
+			if ((p->xCoord - size_of_spaceship <= xCoord) && (p->xCoord + size_of_spaceship * 4 >= xCoord)) {
+				if (clock() - last_lost_life > REGENIGATION_TIME) { // 2500 тиков - время форы перед новым снятием сердца
+					lives--;
+					last_lost_life = clock();
+					if (lives == 0) {
+						difficulty = -1; // если жизни кончились - проигрываем :)
+						choose = 0; // чтоб нельзя было возродится нажав enter
+						score = 0;
+						lives = 3;
+						for (int i = 0; i < MAX_BONUS; i++) bonuses[i][1] = 50000; // same situation
+						for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
+						for (int i = 0; i < MAX_BULLETS; i++) puli[i][1] = 20000; // same situation
+						//for (int i = 0; i < MAX_ASTEROIDS; i++) asteroids[i][1] = 10000; // same situation
+					}
+				}
+			}
+			else {  // если на выбранном y не совпали х
+
+			}
+		}
+		else if (p->yCoord - size_first_asteroid - size_of_spaceship < yCoord) {
+			p = p->pRight;
+		}
+		else {
+			p = p->pLeft;
+		}
+	}
+
+
+	/*
 	for (int i = 0; i < MAX_ASTEROIDS; i++) {
 		if ((asteroids[i][1] - size_first_asteroid - size_of_spaceship <= yCoord) &&
 			(asteroids[i][1] + size_first_asteroid + size_of_spaceship >= yCoord)) {
@@ -517,6 +579,7 @@ void check_hitted_spaceship() {
 			}
 		}
 	}
+	*/
 }
 
 void check_given_bonus() {
@@ -541,12 +604,27 @@ void check_given_bonus() {
 	}
 }
 
+void creating_objects() {
+
+	// пытаемся создать астероид
+	if ((rand() % posibility_of_spawn_asteroids) == 9) {   //выбираем случайное время, при достижении которого генерируется астероид
+		Object item;
+		double y = ((rand() % 16) * 10) - 70; //выбирается случайное значение высоты для появившегося астероида. 70 и 16 (вместо 90 и 18) - немного сдвигаем вниз, чтоб не залезали на интерфейс
+		item.xCoord = 100;  //начальная координата по х. спавним справа от экрана
+		item.yCoord = y;
+		item.speed = (speed_of_asteroids * (rand() % 10)) / 10 + 0.1;  // скорость. добавляем константу, чтоб те астероиды, у которых скорость выпала 0 тоже двигались.
+		item.time_of_create = clock();
+		add_to_ast_tree(item);
+		num_of_asteroids++;
+	}
+}
+
 void display() {
 	glClear(GL_COLOR_BUFFER_BIT);
 	if (difficulty > 0) { // на переднем плане рисуется то, что здесь стоит последним
 		draw_stars();
 		bullet();
-		draw_asteroids();
+		draw_asteroids(asteroid_tree);
 		draw_bonuses();
 
 		spaceship();
@@ -578,7 +656,7 @@ int main(int argc, char** argv) {
 	for (int i = 0; i < MAX_BONUS; i++) bonuses[i][1] = 50000; // same situation
 	for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
 	for (int i = 0; i < MAX_BULLETS; i++) puli[i][1] = 20000; // same situation
-	for (int i = 0; i < MAX_ASTEROIDS; i++) asteroids[i][1] = 10000; // same situation
+	//for (int i = 0; i < MAX_ASTEROIDS; i++) asteroids[i][1] = 10000; // same situation
 
 	last_shooted_bullet = clock();
 	last_lost_life = - REGENIGATION_TIME; // чтоб не моргал в начале
@@ -600,3 +678,5 @@ int main(int argc, char** argv) {
 
 	glutMainLoop();
 }
+
+//test changes
