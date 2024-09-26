@@ -70,7 +70,7 @@ double asteroids[MAX_ASTEROIDS][4]; //первые два значения - к�
 int difficulty = 0; // 0 - меню выбора сложности, 1 - easy, 2 - medium, 3 - hard, 4 - меню проигрыша
 int choose = 1; //нужно для выбора в меню. 1 - подсвечивает easy, 2 - medium, 3 - hard 
 int score = 0; // очки
-int lives = 3;
+int lives = 999;
 time_t last_lost_life; // нужно, чтоб проходило какое-то время после потери жизни. эта переменная будет отсчитывать это время
 #define REGENIGATION_TIME 2000 // количество тиков, нужное для того, чтобы жизнь могла отняться повторно
 
@@ -208,6 +208,7 @@ void draw_bonuses() {
 }
 
 void draw_asteroids(Object* p) {
+	if (p == NULL) return;
 	draw_asteroids(p->pLeft);
 	draw_asteroids(p->pRight);
 
@@ -506,15 +507,9 @@ void game_end_screen() {
 	print_string(-30, -30, "GAME OVER", 1, 0, 0);
 }
 
-void check_hitted_asteroid() {
-	for (int j = 0; j < MAX_BULLETS; j++) {
-		check_hitted_asteroid_help(asteroid_tree, j);
-	}
-}
-
 void check_hitted_asteroid_help(Object* asteroid, int j) {
 	if (asteroid == NULL) return;
-	
+
 	if ((asteroid->yCoord - size_first_asteroid <= puli[j][1]) && (asteroid->yCoord + size_first_asteroid >= puli[j][1])) { //если пуля попала в диапазон ширины астероида
 		if ((asteroid->xCoord - size_first_asteroid <= puli[j][0]) && (asteroid->xCoord >= puli[j][0])) { // и их координаты по х примерно равны
 			puli[j][1] = 20000; // отправляем их обоих за карту
@@ -536,6 +531,12 @@ void check_hitted_asteroid_help(Object* asteroid, int j) {
 		check_hitted_asteroid_help(asteroid->pLeft, j);
 	}
 
+}
+
+void check_hitted_asteroid() {
+	for (int j = 0; j < MAX_BULLETS; j++) {
+		check_hitted_asteroid_help(asteroid_tree, j);
+	}
 }
 
 /*
@@ -690,6 +691,7 @@ void creating_objects() {
 void display() {
 	glClear(GL_COLOR_BUFFER_BIT);
 	if (difficulty > 0) { // на переднем плане рисуется то, что здесь стоит последним
+
 		draw_stars();
 		bullet();
 		draw_asteroids(asteroid_tree);
@@ -697,6 +699,7 @@ void display() {
 
 		spaceship();
 
+		creating_objects();
 		check_given_bonus();
 		check_hitted_spaceship(asteroid_tree);
 		check_hitted_asteroid();
