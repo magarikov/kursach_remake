@@ -506,10 +506,42 @@ void game_end_screen() {
 	print_string(-30, -30, "GAME OVER", 1, 0, 0);
 }
 
+void check_hitted_asteroid() {
+	for (int j = 0; j < MAX_BULLETS; j++) {
+		check_hitted_asteroid_help(asteroid_tree, j);
+	}
+}
+
+void check_hitted_asteroid_help(Object* asteroid, int j) {
+	if (asteroid == NULL) return;
+	
+	if ((asteroid->yCoord - size_first_asteroid <= puli[j][1]) && (asteroid->yCoord + size_first_asteroid >= puli[j][1])) { //если пуля попала в диапазон ширины астероида
+		if ((asteroid->xCoord - size_first_asteroid <= puli[j][0]) && (asteroid->xCoord >= puli[j][0])) { // и их координаты по х примерно равны
+			puli[j][1] = 20000; // отправляем их обоих за карту
+			asteroid->yCoord = 10000;
+			score++;
+			if (time_x2_bonus > 0) score++;
+			return;
+		}
+		else {
+			check_hitted_asteroid_help(asteroid->pRight, j);
+			check_hitted_asteroid_help(asteroid->pLeft, j);
+		}
+	}
+
+	else if ((asteroid->yCoord - size_first_asteroid < puli[j][1])) { //если пуля попала в диапазон ширины астероида {
+		check_hitted_asteroid_help(asteroid->pRight, j);
+	}
+	else {
+		check_hitted_asteroid_help(asteroid->pLeft, j);
+	}
+
+}
+
+/*
 void check_hitted_asteroid() { // проверяет попала ли пуля в астероид. если да - отправляет его за карту
 	for (int i = 0; i < MAX_ASTEROIDS; i++) {
 		for (int j = 0; j < MAX_BULLETS; j++) {
-			//if (asteroids[i][3] == 1) {
 			if ((asteroids[i][1] - size_first_asteroid <= puli[j][1]) && (asteroids[i][1] + size_first_asteroid >= puli[j][1])) { //если пуля попала в диапазон ширины астероида
 				if ((asteroids[i][0] - size_first_asteroid <= puli[j][0]) && (asteroids[i][0] >= puli[j][0])) { // и их координаты по х примерно равны
 					puli[j][1] = 20000; // отправляем их обоих за карту
@@ -518,11 +550,47 @@ void check_hitted_asteroid() { // проверяет попала ли пуля 
 					if (time_x2_bonus > 0) score++; 
 				}
 			}
-			//}
 		}
 	}
 }
+*/
 
+
+void check_hitted_spaceship(Object* asteroid) {
+	if (asteroid == NULL) return;
+	if ((asteroid->yCoord - size_first_asteroid - size_of_spaceship <= yCoord) &&
+		(asteroid->yCoord + size_first_asteroid + size_of_spaceship >= yCoord)) {
+		if ((asteroid->xCoord - size_of_spaceship <= xCoord) && (asteroid->xCoord + size_of_spaceship * 4 >= xCoord)) {
+			if (clock() - last_lost_life > REGENIGATION_TIME) { // 2500 тиков - время форы перед новым снятием сердца
+				lives--;
+				last_lost_life = clock();
+				if (lives == 0) {
+					difficulty = -1; // если жизни кончились - проигрываем :)
+					choose = 0; // чтоб нельзя было возродится нажав enter
+					score = 0;
+					lives = 3;
+					for (int i = 0; i < MAX_BONUS; i++) bonuses[i][1] = 50000; // same situation
+					for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
+					for (int i = 0; i < MAX_BULLETS; i++) puli[i][1] = 20000; // same situation
+					//for (int i = 0; i < MAX_ASTEROIDS; i++) asteroids[i][1] = 10000; // same situation
+				}
+				return;
+			}
+		}
+		else {  // если на выбранном y не совпали х
+			check_hitted_spaceship(asteroid->pRight); // вызываем функции с двух сторон, т.к. астероид врезающийся в корабль 
+			check_hitted_spaceship(asteroid->pLeft);  // может быть как выше, так и ниже. Может быть на той же высоте, но это так же будет рассмотрено
+		}
+	}
+	else if (asteroid->yCoord - size_first_asteroid - size_of_spaceship < yCoord) {
+		check_hitted_spaceship(asteroid->pRight);
+	}
+	else {
+		check_hitted_spaceship(asteroid->pLeft);
+	}
+}
+
+/*
 void check_hitted_spaceship() {
 	Object* p = asteroid_tree;
 	while (p != NULL) {
@@ -555,7 +623,7 @@ void check_hitted_spaceship() {
 			p = p->pLeft;
 		}
 	}
-
+	*/
 
 	/*
 	for (int i = 0; i < MAX_ASTEROIDS; i++) {
@@ -580,7 +648,7 @@ void check_hitted_spaceship() {
 		}
 	}
 	*/
-}
+
 
 void check_given_bonus() {
 	for (int i = 0; i < MAX_BONUS; i++) {
@@ -630,7 +698,7 @@ void display() {
 		spaceship();
 
 		check_given_bonus();
-		check_hitted_spaceship();
+		check_hitted_spaceship(asteroid_tree);
 		check_hitted_asteroid();
 
 		interface();
