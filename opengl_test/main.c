@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 void print_string(float x, float y, char* text, float r, float g, float b) //кусок кода, вытащенный из библиотеки сверху, нужен для печати букв
-{																	//я не очень понимаю как и что здесь работает
+{																	//
 	static char buffer[9000]; // ~500 chars
 	int num_quads;
 
@@ -23,13 +23,20 @@ void print_string(float x, float y, char* text, float r, float g, float b) //к�
 	glDisableClientState(GL_VERTEX_ARRAY);
 }
 
+typedef enum {
+	left,
+	right,
+	no
+} side;
 
-typedef struct sosiska {
+typedef struct Object {
 	double xCoord;
 	double yCoord;
 	double speed;
 	time_t time_of_create;
 
+	struct Object* Parent;
+	side side_kid; // это правый или левый ребенок родителя
 	struct Object* pLeft;
 	struct Object* pRight;
 } Object;
@@ -50,6 +57,7 @@ double size_of_spaceship = 7;
 //количество пуль и координаты каждой из них.
 #define MAX_BULLETS 50
 int num_of_bullets = 0;
+Object* bullets_tree = NULL;
 double puli[MAX_BULLETS][2]; //первое - координата по х, второе - по y
 double speed_of_bullet = 1.5;
 time_t last_shooted_bullet; // время (будет создаваться как clock()) последней выстреленной пули
@@ -70,12 +78,13 @@ double asteroids[MAX_ASTEROIDS][4]; //первые два значения - к�
 int difficulty = 0; // 0 - меню выбора сложности, 1 - easy, 2 - medium, 3 - hard, 4 - меню проигрыша
 int choose = 1; //нужно для выбора в меню. 1 - подсвечивает easy, 2 - medium, 3 - hard 
 int score = 0; // очки
-int lives = 999;
+int lives = 3;
 time_t last_lost_life; // нужно, чтоб проходило какое-то время после потери жизни. эта переменная будет отсчитывать это время
 #define REGENIGATION_TIME 2000 // количество тиков, нужное для того, чтобы жизнь могла отняться повторно
 
 #define MAX_BONUS 10
 int num_of_bonus = 0;
+Object* bonuses_tree = NULL;
 double bonuses[MAX_BONUS][4]; // [3] == 1 - это доп. жизнь
 double speed_of_bonus = 1;
 double size_of_bonus = 0.4;
@@ -84,32 +93,34 @@ time_t last_taken_bonus; // нужно, чтоб проходило какое-�
 #define CAN_TAKE_NEW_BONUS 100 // количество тиков, нужное для того, чтобы подобрать новый бонус
 double time_x2_bonus = 0; // время действия x2 бонуса
 
-Object* create_new_Object(Object item) {
+Object* create_new_Object(Object item, Object* parent, side side_kid) {
 	Object* p = (Object*)malloc(sizeof(Object));
 	p->xCoord = item.xCoord;
 	p->yCoord = item.yCoord;
 	p->speed = item.speed;
 
+	p->Parent = parent;
+	p->side_kid = side_kid;
 	p->pLeft = NULL;
 	p->pRight = NULL;
 	return p;
 }
 
 // будем строить дерево по y координате, т.к. по ней потом будем искать
-void add_to_ast_tree(Object item) {
-	if (asteroid_tree != NULL) { // сначала наиболее вероятный случай для эффективности
-		Object* p = asteroid_tree;
+Object* add_to_tree(Object* tree ,Object item) {
+	if (tree != NULL) { // сначала наиболее вероятный случай для эффективности
+		Object* p = tree;
 		while (1) {
 			if (p->yCoord >= item.yCoord) {
 				if (p->pLeft == NULL) {
-					p->pLeft = create_new_Object(item);
+					p->pLeft = create_new_Object(item, p, left);
 					break;
 				}
 				p = p->pLeft;
 			}
 			else {
 				if (p->pRight == NULL) {
-					p->pRight = create_new_Object(item);
+					p->pRight = create_new_Object(item, p, right);
 					break;
 				}
 				p = p->pRight;
@@ -117,19 +128,59 @@ void add_to_ast_tree(Object item) {
 		}
 	}
 	else {
-		asteroid_tree = create_new_Object(item);
+		tree = create_new_Object(item, NULL, no);
 	}
+	return tree;
+}
+
+// записывает вместо текущих значений, значения самого правого элемента из левого поддерева
+// или самого левого элемента из правого поддерева
+// затем удаляет этот элемент
+// Если это уже самый нижний, то нужно удалить его
+
+void delete_node(Object* asteroid) {
+	Object* p;
+	if ((asteroid->pLeft == NULL) && (asteroid->pRight == NULL)) { // если лист
+		if (asteroid->side_kid == left) asteroid->Parent->pLeft = NULL;
+		if (asteroid->side_kid == right) asteroid->Parent->pRight = NULL;
+		return;
+	}
+	else if (asteroid->pLeft == NULL) {
+		p = asteroid->pRight;
+		int sdf = 0;
+		while (p->pLeft != NULL && p->pRight != NULL) {
+			sdf++;
+			if (p->pLeft != NULL) p = p->pLeft;
+			else p = p->pRight;
+		}
+
+	}
+	else if (asteroid->pRight == NULL) {
+		p = asteroid->pLeft;
+		while (p->pLeft != NULL && p->pRight != NULL) {
+			if (p->pRight != NULL) p = p->pRight;
+			else p = p->pLeft;
+		}
+	}
+	else {
+		p = asteroid->pLeft;
+		while (p->pLeft != NULL && p->pRight != NULL) {
+			if (p->pRight != NULL) p = p->pRight;
+			else p = p->pLeft;
+		}
+	}
+	//копируем данные
+	asteroid->speed = p->speed;
+	asteroid->xCoord = p->xCoord;
+	asteroid->yCoord = p->yCoord;
+	asteroid->time_of_create = p->time_of_create;
+	//удаляем листок
+	if (p->side_kid == left) p->Parent->pLeft = NULL;
+	if (p->side_kid == right) p->Parent->pRight = NULL;
 }
 
 void draw_bonuses() {
-	if ((rand() % posibility_of_spawn_bonus) == 9) {   //выбираем случайное время, при достижении которого генерируется звезда. чем больше значение после %, тем ниже вероятность появления
-		double y = ((rand() % 18) * 10) - 75; //выбирается случайное значение высоты для появившейся звезды. 75 (вместо 90) - немного сдвигаем вниз, чтоб не залезали на интерфейс
-		bonuses[num_of_bonus][0] = 100;  //начальная координата по х. спавним справа от экрана
-		bonuses[num_of_bonus][1] = y;
-		bonuses[num_of_bonus][2] = speed_of_bonus;  // скорость. добавляем константу, чтоб те звезды, у которых скорость выпала 0 тоже двигались.
-		bonuses[num_of_bonus][3] = rand() % 3;
-		num_of_bonus++;
-	}
+	
 	if (num_of_bonus > MAX_BONUS - 1) num_of_bonus = 0; //когда пуль в памяти более 10000, записываем координаты новых в начало
 	for (int i = 0; i < MAX_BONUS; i++) {
 		bonuses[i][0] -= bonuses[i][2];
@@ -513,7 +564,8 @@ void check_hitted_asteroid_help(Object* asteroid, int j) {
 	if ((asteroid->yCoord - size_first_asteroid <= puli[j][1]) && (asteroid->yCoord + size_first_asteroid >= puli[j][1])) { //если пуля попала в диапазон ширины астероида
 		if ((asteroid->xCoord - size_first_asteroid <= puli[j][0]) && (asteroid->xCoord >= puli[j][0])) { // и их координаты по х примерно равны
 			puli[j][1] = 20000; // отправляем их обоих за карту
-			asteroid->yCoord = 10000;
+			//asteroid->yCoord = 1000;
+			delete_node(asteroid);
 			score++;
 			if (time_x2_bonus > 0) score++;
 			return;
@@ -574,6 +626,7 @@ void check_hitted_spaceship(Object* asteroid) {
 					for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
 					for (int i = 0; i < MAX_BULLETS; i++) puli[i][1] = 20000; // same situation
 					//for (int i = 0; i < MAX_ASTEROIDS; i++) asteroids[i][1] = 10000; // same situation
+					asteroid_tree = NULL;
 				}
 				return;
 			}
@@ -652,6 +705,9 @@ void check_hitted_spaceship() {
 
 
 void check_given_bonus() {
+
+
+	
 	for (int i = 0; i < MAX_BONUS; i++) {
 		if ((bonuses[i][1] - size_of_bonus - size_of_spaceship <= yCoord) &&
 			(bonuses[i][1] + size_of_bonus + size_of_spaceship >= yCoord)) {
@@ -671,6 +727,7 @@ void check_given_bonus() {
 			}
 		}
 	}
+	
 }
 
 void creating_objects() {
@@ -683,8 +740,17 @@ void creating_objects() {
 		item.yCoord = y;
 		item.speed = (speed_of_asteroids * (rand() % 10)) / 10 + 0.1;  // скорость. добавляем константу, чтоб те астероиды, у которых скорость выпала 0 тоже двигались.
 		item.time_of_create = clock();
-		add_to_ast_tree(item);
+		asteroid_tree = add_to_tree(asteroid_tree, item);
 		num_of_asteroids++;
+	}
+
+	if ((rand() % posibility_of_spawn_bonus) == 9) {   //выбираем случайное время, при достижении которого генерируется звезда. чем больше значение после %, тем ниже вероятность появления
+		double y = ((rand() % 18) * 10) - 75; //выбирается случайное значение высоты для появившейся звезды. 75 (вместо 90) - немного сдвигаем вниз, чтоб не залезали на интерфейс
+		bonuses[num_of_bonus][0] = 100;  //начальная координата по х. спавним справа от экрана
+		bonuses[num_of_bonus][1] = y;
+		bonuses[num_of_bonus][2] = speed_of_bonus;  // скорость. добавляем константу, чтоб те звезды, у которых скорость выпала 0 тоже двигались.
+		bonuses[num_of_bonus][3] = rand() % 3;
+		num_of_bonus++;
 	}
 }
 
@@ -709,6 +775,7 @@ void display() {
 	else if (difficulty == 0) menu();
 	else if (difficulty == -1) { // 4 - проиграл
 		game_end_screen();
+
 	}
 	else if (difficulty = -2) {
 		pause();
