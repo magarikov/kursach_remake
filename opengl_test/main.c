@@ -3,6 +3,8 @@
 Сделать, чтобы пули не стреляли бесконечно
 Почему звезды перестают появляться - ф-я draw_stars запускается единожды
 */
+
+#define _CRT_SECURE_NO_WARNINGS
 #include <GL/freeglut.h>
 #include <time.h>
 #include <stdio.h>
@@ -60,7 +62,7 @@ time_t last_shooted_bullet; // время (будет создаваться к�
 Object* asteroid_tree = NULL;
 int num_of_asteroids = 0;
 double speed_of_asteroids = 2.0; // коэффицент изменения скорости астероидов
-double size_first_asteroid = 7;
+double size_first_asteroid = 7; // 7
 int posibility_of_spawn_asteroids = 30; // меняется в spaceship_move (в будующем может быть в клавиатуре)
 /*
 #define MAX_ASTEROIDS 100 // количество астероидов, которые могут существовать одновременно
@@ -70,7 +72,7 @@ double asteroids[MAX_ASTEROIDS][4]; //первые два значения - к�
 int difficulty = 0; // 0 - меню выбора сложности, 1 - easy, 2 - medium, 3 - hard, 4 - меню проигрыша
 int choose = 1; //нужно для выбора в меню. 1 - подсвечивает easy, 2 - medium, 3 - hard 
 int score = 0; // очки
-int lives = 999;
+int lives = 99;
 time_t last_lost_life; // нужно, чтоб проходило какое-то время после потери жизни. эта переменная будет отсчитывать это время
 #define REGENIGATION_TIME 2000 // количество тиков, нужное для того, чтобы жизнь могла отняться повторно
 
@@ -120,6 +122,42 @@ void add_to_ast_tree(Object item) {
 		asteroid_tree = create_new_Object(item);
 	}
 }
+
+// la-la
+Object* delete_from_ast_tree(Object* root, double yCoord) {
+	if (root == NULL) return NULL;
+
+	if (yCoord < root->yCoord) {
+		root->pLeft = delete_from_ast_tree(root->pLeft, yCoord);
+	}
+	else if (yCoord > root->yCoord) {
+		root->pRight = delete_from_ast_tree(root->pRight, yCoord);
+	}
+	else {
+		// Узел найден
+		if (root->pLeft == NULL) {
+			Object* temp = root->pRight;
+			free(root);
+			return temp;
+		}
+		else if (root->pRight == NULL) {
+			Object* temp = root->pLeft;
+			free(root);
+			return temp;
+		}
+		else {
+			// Замена минимальным элементом правого поддерева
+			Object* temp = root->pRight;
+			while (temp->pLeft != NULL) temp = temp->pLeft;
+			root->yCoord = temp->yCoord;
+			root->xCoord = temp->xCoord;
+			root->speed = temp->speed;
+			root->pRight = delete_from_ast_tree(root->pRight, temp->yCoord);
+		}
+	}
+	return root;
+}
+
 
 void draw_bonuses() {
 	if ((rand() % posibility_of_spawn_bonus) == 9) {   //выбираем случайное время, при достижении которого генерируется звезда. чем больше значение после %, тем ниже вероятность появления
@@ -513,7 +551,7 @@ void check_hitted_asteroid_help(Object* asteroid, int j) {
 	if ((asteroid->yCoord - size_first_asteroid <= puli[j][1]) && (asteroid->yCoord + size_first_asteroid >= puli[j][1])) { //если пуля попала в диапазон ширины астероида
 		if ((asteroid->xCoord - size_first_asteroid <= puli[j][0]) && (asteroid->xCoord >= puli[j][0])) { // и их координаты по х примерно равны
 			puli[j][1] = 20000; // отправляем их обоих за карту
-			asteroid->yCoord = 10000;
+			asteroid->xCoord = 100; // asteroid->yCoord = 10000;
 			score++;
 			if (time_x2_bonus > 0) score++;
 			return;
@@ -732,7 +770,8 @@ int main(int argc, char** argv) {
 	last_shooted_bullet = clock();
 	last_lost_life = - REGENIGATION_TIME; // чтоб не моргал в начале
 
-	srand(time(NULL));
+	//srand(time(NULL));
+	srand(NULL);
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
@@ -750,4 +789,21 @@ int main(int argc, char** argv) {
 	glutMainLoop();
 }
 
-//test changes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
