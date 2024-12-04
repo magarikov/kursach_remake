@@ -93,6 +93,43 @@ time_t last_taken_bonus; // нужно, чтоб проходило какое-�
 #define CAN_TAKE_NEW_BONUS 100 // количество тиков, нужное для того, чтобы подобрать новый бонус
 double time_x2_bonus = 0; // время действия x2 бонуса
 
+
+// Вспомогательная функция для вывода одного узла
+void print_node(Object* node, int depth) {
+	for (int i = 0; i < depth; i++) {
+		printf("    "); // Отступ для визуализации уровня дерева
+	}
+	if (node->Parent != NULL) {
+		printf("y: %.2f, x: %.2f, Parent->x: %.2f, child_side: %d\n",
+			node->yCoord, node->xCoord, node->Parent->xCoord, node->side_kid);
+	}
+	else printf("y: %.2f, x: %.2f, Net papi, child_side: %d\n",
+		node->yCoord, node->xCoord, node->side_kid);
+}
+
+// Рекурсивная функция для вывода дерева
+void print_tree(Object* root, int depth) {
+	if (root == NULL) {
+		return;
+	}
+
+	// Сначала выводим правое поддерево
+	print_tree(root->pRight, depth + 1);
+
+	// Выводим текущий узел
+	print_node(root, depth);
+
+	// Затем левое поддерево
+	print_tree(root->pLeft, depth + 1);
+}
+
+// Функция для вызова печати дерева
+void print_tree_start(Object* root) {
+	printf("Tree structure:\n");
+	print_tree(root, 0);
+}
+
+
 Object* create_new_Object(Object item, Object* parent, side side_kid) {
 	Object* p = (Object*)malloc(sizeof(Object));
 	p->xCoord = item.xCoord;
@@ -140,47 +177,102 @@ Object* add_to_tree(Object* tree ,Object item) {
 
 void delete_node(Object* asteroid) {
 	Object* p;
+	printf("\ndelete %f %f\n", asteroid->yCoord, asteroid->xCoord);
+	print_tree_start(asteroid_tree);
+	
 	if ((asteroid->pLeft == NULL) && (asteroid->pRight == NULL)) { // если лист
-		if (asteroid->side_kid == left) asteroid->Parent->pLeft = NULL;
-		if (asteroid->side_kid == right) asteroid->Parent->pRight = NULL;
+		printf("1\n");
+		if (asteroid == asteroid_tree) {
+			asteroid_tree = asteroid->pRight;
+			asteroid->Parent = NULL;
+		}
+		else if (asteroid->side_kid == left) asteroid->Parent->pLeft = NULL;
+		else if (asteroid->side_kid == right) asteroid->Parent->pRight = NULL;
+		print_tree_start(asteroid_tree);
 		return;
 	}
 	else if (asteroid->pLeft == NULL) {
+		printf("2\n");
+		if (asteroid == asteroid_tree) {
+			asteroid_tree = asteroid->pRight;
+			asteroid->Parent = NULL;
+		}
+		else if (asteroid->side_kid == left) {
+			asteroid->pRight->Parent = asteroid->Parent;
+			asteroid->pRight->side_kid = asteroid->side_kid;
+			asteroid->Parent->pLeft = asteroid->pRight;
+		}
+		else if (asteroid->side_kid == right) {
+			asteroid->pRight->Parent = asteroid->Parent;
+			asteroid->pRight->side_kid = asteroid->side_kid;
+			asteroid->Parent->pRight = asteroid->pRight;
+		}
+		print_tree_start(asteroid_tree);
+		return;
+		/*
 		p = asteroid->pRight;
 		int sdf = 0;
-		while (p->pLeft != NULL && p->pRight != NULL) {
+		while (p->pLeft != NULL || p->pRight != NULL) {
 			sdf++;
 			if (p->pLeft != NULL) p = p->pLeft;
 			else p = p->pRight;
 		}
-
+		*/
 	}
 	else if (asteroid->pRight == NULL) {
+		printf("3\n");
+		if (asteroid == asteroid_tree) {
+			asteroid_tree = asteroid->pLeft;
+			asteroid->Parent = NULL;
+		}
+		else if (asteroid->side_kid == left) {
+			asteroid->pLeft->Parent = asteroid->Parent;
+			asteroid->pLeft->side_kid = asteroid->side_kid;
+			asteroid->Parent->pLeft = asteroid->pLeft;
+		}
+		else if (asteroid->side_kid == right) {
+			asteroid->pLeft->Parent = asteroid->Parent;
+			asteroid->pLeft->side_kid = asteroid->side_kid;
+			asteroid->Parent->pRight = asteroid->pLeft;
+		}
+		print_tree_start(asteroid_tree);
+		return;
+		/*
 		p = asteroid->pLeft;
-		while (p->pLeft != NULL && p->pRight != NULL) {
+		while (p->pLeft != NULL || p->pRight != NULL) {
 			if (p->pRight != NULL) p = p->pRight;
 			else p = p->pLeft;
 		}
+		*/
 	}
 	else {
+		printf("4\n");
 		p = asteroid->pLeft;
-		while (p->pLeft != NULL && p->pRight != NULL) {
+		while (p->pLeft != NULL || p->pRight != NULL) {
 			if (p->pRight != NULL) p = p->pRight;
 			else p = p->pLeft;
 		}
+		//копируем данные
+		asteroid->speed = p->speed;
+		asteroid->xCoord = p->xCoord;
+		asteroid->yCoord = p->yCoord;
+		asteroid->time_of_create = p->time_of_create;
+		//удаляем листок
+		print_tree_start(asteroid_tree);
+		if (p->side_kid == left) p->Parent->pLeft = NULL;
+		if (p->side_kid == right) p->Parent->pRight = NULL;
 	}
-	//копируем данные
-	asteroid->speed = p->speed;
-	asteroid->xCoord = p->xCoord;
-	asteroid->yCoord = p->yCoord;
-	asteroid->time_of_create = p->time_of_create;
-	//удаляем листок
-	if (p->side_kid == left) p->Parent->pLeft = NULL;
-	if (p->side_kid == right) p->Parent->pRight = NULL;
+	
+}
+
+void delete_unnesessary_asteroids(Object* asteroid) {
+	if (asteroid == NULL) return;
+	if (asteroid->pLeft != NULL) delete_unnesessary_asteroids(asteroid->pLeft);
+	if (asteroid->pRight != NULL) delete_unnesessary_asteroids(asteroid->pRight);
+	if (asteroid->xCoord < -110) delete_node(asteroid);
 }
 
 void draw_bonuses() {
-	
 	if (num_of_bonus > MAX_BONUS - 1) num_of_bonus = 0; //когда пуль в памяти более 10000, записываем координаты новых в начало
 	for (int i = 0; i < MAX_BONUS; i++) {
 		bonuses[i][0] -= bonuses[i][2];
@@ -566,6 +658,7 @@ void check_hitted_asteroid_help(Object* asteroid, int j) {
 			puli[j][1] = 20000; // отправляем их обоих за карту
 			//asteroid->yCoord = 1000;
 			delete_node(asteroid);
+			//remove_node(asteroid);
 			score++;
 			if (time_x2_bonus > 0) score++;
 			return;
@@ -742,6 +835,7 @@ void creating_objects() {
 		item.time_of_create = clock();
 		asteroid_tree = add_to_tree(asteroid_tree, item);
 		num_of_asteroids++;
+		printf("%f\n", y);
 	}
 
 	if ((rand() % posibility_of_spawn_bonus) == 9) {   //выбираем случайное время, при достижении которого генерируется звезда. чем больше значение после %, тем ниже вероятность появления
@@ -765,6 +859,7 @@ void display() {
 
 		spaceship();
 
+		delete_unnesessary_asteroids(asteroid_tree);
 		creating_objects();
 		check_given_bonus();
 		check_hitted_spaceship(asteroid_tree);
@@ -799,7 +894,7 @@ int main(int argc, char** argv) {
 	last_shooted_bullet = clock();
 	last_lost_life = - REGENIGATION_TIME; // чтоб не моргал в начале
 
-	srand(time(NULL));
+	srand(NULL);
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
