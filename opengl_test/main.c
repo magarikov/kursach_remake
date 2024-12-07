@@ -78,7 +78,8 @@ double asteroids[MAX_ASTEROIDS][4]; //первые два значения - к�
 int difficulty = 0; // 0 - меню выбора сложности, 1 - easy, 2 - medium, 3 - hard, 4 - меню проигрыша
 int choose = 1; //нужно для выбора в меню. 1 - подсвечивает easy, 2 - medium, 3 - hard 
 int score = 0; // очки
-int lives = 3;
+int score_copy;
+int lives = 1;
 time_t last_lost_life; // нужно, чтоб проходило какое-то время после потери жизни. эта переменная будет отсчитывать это время
 #define REGENIGATION_TIME 2000 // количество тиков, нужное для того, чтобы жизнь могла отняться повторно
 
@@ -129,6 +130,12 @@ void print_tree_start(Object* root) {
 	print_tree(root, 0);
 }
 
+void print_all_asteroids(Object* p) {
+	printf("y: %.2f, x: %.2f, Parent->x: %.2f, child_side: %d\n",
+		p->yCoord, p->xCoord, p->xCoord, p->side_kid);
+	if (p->pLeft != NULL) print_all_asteroids(p->pLeft);
+	if (p->pRight != NULL) print_all_asteroids(p->pRight);
+}
 
 Object* create_new_Object(Object item, Object* parent, side side_kid) {
 	Object* p = (Object*)malloc(sizeof(Object));
@@ -170,108 +177,93 @@ Object* add_to_tree(Object* tree ,Object item) {
 	return tree;
 }
 
-// записывает вместо текущих значений, значения самого правого элемента из левого поддерева
-// или самого левого элемента из правого поддерева
+// Если потомков нет - то просто удаляет
+// Если у удаляемого элемента один потомок, он становится на его место
+// Иначе записывает вместо текущих значений, значения самого правого элемента из левого поддерева
 // затем удаляет этот элемент
-// Если это уже самый нижний, то нужно удалить его
 
-void delete_node(Object* asteroid) {
+void delete_node(Object* object, Object** tree) {
 	Object* p;
-	printf("\ndelete %f %f\n", asteroid->yCoord, asteroid->xCoord);
-	print_tree_start(asteroid_tree);
+	printf("\ndelete %f %f\n", object->yCoord, object->xCoord);
+	print_all_asteroids(*tree);
+	printf("\n");
+	print_tree_start(*tree);
 	
-	if ((asteroid->pLeft == NULL) && (asteroid->pRight == NULL)) { // если лист
-		printf("1\n");
-		if (asteroid == asteroid_tree) {
-			asteroid_tree = asteroid->pRight;
-			asteroid->Parent = NULL;
+	if ((object->pLeft == NULL) && (object->pRight == NULL)) { // если лист
+		//printf("1\n");
+		if (object == *tree) {
+			*tree = object->pRight;
+			object->Parent = NULL;
 		}
-		else if (asteroid->side_kid == left) asteroid->Parent->pLeft = NULL;
-		else if (asteroid->side_kid == right) asteroid->Parent->pRight = NULL;
-		print_tree_start(asteroid_tree);
+		else if (object->side_kid == left) object->Parent->pLeft = NULL;
+		else if (object->side_kid == right) object->Parent->pRight = NULL;
+		//print_tree_start(tree);
 		return;
 	}
-	else if (asteroid->pLeft == NULL) {
+	else if (object->pLeft == NULL) {
 		printf("2\n");
-		if (asteroid == asteroid_tree) {
-			asteroid_tree = asteroid->pRight;
-			asteroid->Parent = NULL;
+		if (object == *tree) {
+			*tree = object->pRight;
+			object->Parent = NULL;
 		}
-		else if (asteroid->side_kid == left) {
-			asteroid->pRight->Parent = asteroid->Parent;
-			asteroid->pRight->side_kid = asteroid->side_kid;
-			asteroid->Parent->pLeft = asteroid->pRight;
+		else if (object->side_kid == left) {
+			object->pRight->Parent = object->Parent;
+			object->pRight->side_kid = object->side_kid;
+			object->Parent->pLeft = object->pRight;
 		}
-		else if (asteroid->side_kid == right) {
-			asteroid->pRight->Parent = asteroid->Parent;
-			asteroid->pRight->side_kid = asteroid->side_kid;
-			asteroid->Parent->pRight = asteroid->pRight;
+		else if (object->side_kid == right) {
+			object->pRight->Parent = object->Parent;
+			object->pRight->side_kid = object->side_kid;
+			object->Parent->pRight = object->pRight;
 		}
-		print_tree_start(asteroid_tree);
+		print_tree_start(*tree);
 		return;
-		/*
-		p = asteroid->pRight;
-		int sdf = 0;
-		while (p->pLeft != NULL || p->pRight != NULL) {
-			sdf++;
-			if (p->pLeft != NULL) p = p->pLeft;
-			else p = p->pRight;
-		}
-		*/
 	}
-	else if (asteroid->pRight == NULL) {
+	else if (object->pRight == NULL) {
 		printf("3\n");
-		if (asteroid == asteroid_tree) {
-			asteroid_tree = asteroid->pLeft;
-			asteroid->Parent = NULL;
+		if (object == *tree) {
+			*tree = object->pLeft;
+			object->Parent = NULL;
 		}
-		else if (asteroid->side_kid == left) {
-			asteroid->pLeft->Parent = asteroid->Parent;
-			asteroid->pLeft->side_kid = asteroid->side_kid;
-			asteroid->Parent->pLeft = asteroid->pLeft;
+		else if (object->side_kid == left) {
+			object->pLeft->Parent = object->Parent;
+			object->pLeft->side_kid = object->side_kid;
+			object->Parent->pLeft = object->pLeft;
 		}
-		else if (asteroid->side_kid == right) {
-			asteroid->pLeft->Parent = asteroid->Parent;
-			asteroid->pLeft->side_kid = asteroid->side_kid;
-			asteroid->Parent->pRight = asteroid->pLeft;
+		else if (object->side_kid == right) {
+			object->pLeft->Parent = object->Parent;
+			object->pLeft->side_kid = object->side_kid;
+			object->Parent->pRight = object->pLeft;
 		}
-		print_tree_start(asteroid_tree);
+		print_tree_start(*tree);
 		return;
-		/*
-		p = asteroid->pLeft;
-		while (p->pLeft != NULL || p->pRight != NULL) {
-			if (p->pRight != NULL) p = p->pRight;
-			else p = p->pLeft;
-		}
-		*/
+
 	}
 	else {
 		printf("4\n");
-		p = asteroid->pLeft;
-		while (p->pLeft != NULL || p->pRight != NULL) {
-			if (p->pRight != NULL) p = p->pRight;
-			else p = p->pLeft;
+		p = object->pLeft;
+		int flag = 0; // заходили ли мы в цикл - двигались ли вправо
+		// важно знать, иначе сторона ребенка неправильно обновится
+		while (/*p->pLeft != NULL || */p->pRight != NULL) {
+			p = p->pRight;
+			flag = 1;
 		}
 		//копируем данные
-		asteroid->speed = p->speed;
-		asteroid->xCoord = p->xCoord;
-		asteroid->yCoord = p->yCoord;
-		asteroid->time_of_create = p->time_of_create;
-		//удаляем листок
-		print_tree_start(asteroid_tree);
-		if (p->side_kid == left) p->Parent->pLeft = NULL;
-		if (p->side_kid == right) p->Parent->pRight = NULL;
+		object->speed = p->speed;
+		object->xCoord = p->xCoord;
+		object->yCoord = p->yCoord;
+		object->time_of_create = p->time_of_create;
+
+		if (p->pLeft != NULL) {
+			p->pLeft->Parent = p->Parent;
+			if (flag) p->pLeft->side_kid = right;
+		}
+		//удаляем вершину из дерева, данные которой переместили наверх
+		if (p->side_kid == left) p->Parent->pLeft = p->pLeft;
+		if (p->side_kid == right) p->Parent->pRight = p->pLeft;
+		print_tree_start(*tree);
 	}
-	
 }
-
-void delete_unnesessary_asteroids(Object* asteroid) {
-	if (asteroid == NULL) return;
-	if (asteroid->pLeft != NULL) delete_unnesessary_asteroids(asteroid->pLeft);
-	if (asteroid->pRight != NULL) delete_unnesessary_asteroids(asteroid->pRight);
-	if (asteroid->xCoord < -110) delete_node(asteroid);
-}
-
 
 void draw_bonuses() {
 	if (num_of_bonus > MAX_BONUS - 1) num_of_bonus = 0; //когда пуль в памяти более 10000, записываем координаты новых в начало
@@ -352,6 +344,7 @@ void draw_bonuses() {
 }
 
 void draw_asteroids(Object* p) {
+	//Object* p = *pp;
 	if (p == NULL) return;
 	draw_asteroids(p->pLeft);
 	draw_asteroids(p->pRight);
@@ -376,6 +369,7 @@ void draw_asteroids(Object* p) {
 	glColor3f(0.35, 0.35, 0.35); glVertex3f(p->xCoord - size_first_asteroid / 3, p->yCoord + size_first_asteroid / 2, 0);
 	glColor3f(0.55, 0.55, 0.55); glVertex3f(p->xCoord + size_first_asteroid / 1.9, p->yCoord + size_first_asteroid / 3, 0);
 	glEnd();
+	if (p->xCoord < -110) delete_node(p, &asteroid_tree);
 }
 
 void draw_stars() { //ф-я которая создаёт звезды на фоне.
@@ -649,6 +643,16 @@ void pause() {
 void game_end_screen() {
 	//print_string(-55, -30, "     EbATb Tbl\n Dolbayeb konechno...", 1, 0, 0);
 	print_string(-30, -30, "GAME OVER", 1, 0, 0);
+
+	char score_string[32] = "Your score: ";
+	score_string[12] = (score_copy % 10000) / 1000 + '0';
+	score_string[13] = (score_copy % 1000) / 100 + '0';
+	score_string[14] = (score_copy % 100) / 10 + '0';
+	score_string[15] = score_copy % 10 + '0';
+	score_string[16] = '\0';
+	print_string(-45, -10, score_string, 1, 1, 1);
+	print_string(-35, 10, "(press enter)", 1, 1, 1);
+	//printf("%s", score_string);
 }
 
 void check_hitted_asteroid_help(Object* asteroid, int j) {
@@ -658,7 +662,7 @@ void check_hitted_asteroid_help(Object* asteroid, int j) {
 		if ((asteroid->xCoord - size_first_asteroid <= puli[j][0]) && (asteroid->xCoord >= puli[j][0])) { // и их координаты по х примерно равны
 			puli[j][1] = 20000; // отправляем их обоих за карту
 			//asteroid->yCoord = 1000;
-			delete_node(asteroid);
+			delete_node(asteroid, &asteroid_tree);
 			//remove_node(asteroid);
 			score++;
 			if (time_x2_bonus > 0) score++;
@@ -712,6 +716,7 @@ void check_hitted_spaceship(Object* asteroid) {
 				lives--;
 				last_lost_life = clock();
 				if (lives == 0) {
+					score_copy = score;
 					difficulty = -1; // если жизни кончились - проигрываем :)
 					choose = 0; // чтоб нельзя было возродится нажав enter
 					score = 0;
@@ -860,7 +865,6 @@ void display() {
 
 		spaceship();
 
-		delete_unnesessary_asteroids(asteroid_tree);
 		creating_objects();
 		check_given_bonus();
 		check_hitted_spaceship(asteroid_tree);
