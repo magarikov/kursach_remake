@@ -89,7 +89,7 @@ double time_x2_bonus = 0;
 Object* bonusTree = NULL; // Инициализация корня дерева для хранения бонусов
 
 // ОБЩЕЕ
-int difficulty = 0; // 0 - меню выбора сложности, 1 - easy, 2 - medium, 3 - hard, 4 - меню проигрыша
+int difficulty = 0; // 0 - меню выбора сложности, 1 - easy, 2 - medium, 3 - hard, -1 - проигрыш, -2 - пауза
 int choose = 1; //нужно для выбора в меню. 1 - подсвечивает easy, 2 - medium, 3 - hard 
 int score = 0; // очки
 int score_copy;
@@ -155,24 +155,47 @@ Object* create_new_Object(Object item, Object* parent, side side_kid) {
 	return p;
 }
 
-// будем строить дерево по y координате, т.к. по ней потом будем искать
+// строим дерево по y координате, т.к. по ней потом будем искать
 Object* add_to_tree(Object* tree, Object item) {
 	if (tree != NULL) { // сначала наиболее вероятный случай для эффективности
-		Object* p = tree;
-		while (1) {
-			if (p->yCoord >= item.yCoord) {
-				if (p->pLeft == NULL) {
-					p->pLeft = create_new_Object(item, p, left);
-					break;
+		// строим по y координате (большинство объектов)
+		if (tree != bullets_tree) {
+			Object* p = tree;
+			while (1) {
+				if (p->yCoord >= item.yCoord) {
+					if (p->pLeft == NULL) {
+						p->pLeft = create_new_Object(item, p, left);
+						break;
+					}
+					p = p->pLeft;
 				}
-				p = p->pLeft;
+				else {
+					if (p->pRight == NULL) {
+						p->pRight = create_new_Object(item, p, right);
+						break;
+					}
+					p = p->pRight;
+				}
 			}
-			else {
-				if (p->pRight == NULL) {
-					p->pRight = create_new_Object(item, p, right);
-					break;
+		}
+		// если дерево пуль то строим по x координате
+		else {
+			Object* p = tree;
+			while (1) {
+				if (p->xCoord >= item.xCoord) {
+					if (p->pLeft == NULL) {
+						p->pLeft = create_new_Object(item, p, left);
+						break;
+					}
+					p = p->pLeft;
 				}
-				p = p->pRight;
+				else {
+					if (p->pRight == NULL) {
+						p->pRight = create_new_Object(item, p, right);
+						break;
+					}
+					p = p->pRight;
+				}
 			}
 		}
 	}
@@ -187,12 +210,14 @@ Object* add_to_tree(Object* tree, Object item) {
 // Иначе записывает вместо текущих значений, значения самого правого элемента из левого поддерева
 // затем удаляет этот элемент
 
+
 void delete_node(Object* object, Object** tree) {
 	Object* p;
 	//printf("\ndelete %f %f\n", object->yCoord, object->xCoord);
 	//print_all_asteroids(*tree);
-	printf("\n");
+	//printf("\n");
 	//print_tree_start(*tree);
+
 
 	if ((object->pLeft == NULL) && (object->pRight == NULL)) { // если лист
 		//printf("1\n");
@@ -409,6 +434,21 @@ void draw_stars() { //ф-я которая создаёт звезды на фо
 	}
 }
 
+void draw_bullets(Object* p) {
+	if (p == NULL) return;
+	draw_bullets(p->pLeft);
+	draw_bullets(p->pRight);
+
+	p->xCoord += speed_of_bullet;
+	glLineWidth(5);
+	glBegin(GL_LINES);
+	glColor3f(1, 0.4, 0); glVertex3f(p->xCoord, p->yCoord, 0);
+	glColor3f(1, 1, 0); glVertex3f(p->xCoord - 6, p->yCoord, 0);
+	glEnd();
+
+	if (p->xCoord > 110) delete_node(p, &bullets_tree);
+}
+
 void spaceship() {
 	if (((clock() - last_lost_life < REGENIGATION_TIME) && (((clock() % 100) / 10) % 2 == 1))); // если исполняется, кораблик исчезает (начинает моргать)
 	else {					// иначе рисуется
@@ -468,6 +508,7 @@ void spaceship() {
 }
 
 void bullet() { // пуля
+	
 	if (num_of_bullets > MAX_BULLETS) num_of_bullets = 0; //когда пуль в памяти более 100, записываем координаты новых в начало
 	for (int i = 0; i < MAX_BULLETS; i++) {  //берет координаты каждой пули, добавляет к ним скорость и рисует их. 
 		puli[i][0] += speed_of_bullet;
@@ -493,9 +534,12 @@ void spaceship_move(unsigned char key, int x, int y) {  //перемещение
 	if ((key == ' ') || (key == '5')) {
 		if (clock() - last_shooted_bullet > 150) { // проверяем, чтоб прошло какое-то время после последней пули
 			last_shooted_bullet = clock();
-			puli[num_of_bullets][0] = xCoord;
-			puli[num_of_bullets][1] = yCoord;
-			num_of_bullets++;
+			Object item;
+			item.xCoord = xCoord;  //начальная координата по х. спавним справа от экрана
+			item.yCoord = yCoord;
+			item.speed = speed_of_bullet;  // скорость. добавляем константу, чтоб те астероиды, у которых скорость выпала 0 тоже двигались.
+			item.time_of_create = clock();
+			bullets_tree = add_to_tree(bullets_tree, item);
 		}
 	}
 	if (key == 13) {
@@ -716,12 +760,13 @@ void check_taken_bonus(Object* bonus) {
 
 }
 
-void check_hitted_asteroid_help(Object* asteroid, int j) {
+void check_hitted_asteroid_help(Object* asteroid, Object* bullet) {
 	if (asteroid == NULL) return;
 
-	if ((asteroid->yCoord - size_first_asteroid <= puli[j][1]) && (asteroid->yCoord + size_first_asteroid >= puli[j][1])) { //если пуля попала в диапазон ширины астероида
-		if ((asteroid->xCoord - size_first_asteroid <= puli[j][0]) && (asteroid->xCoord >= puli[j][0])) { // и их координаты по х примерно равны
-			puli[j][1] = 20000; // отправляем их обоих за карту
+	if ((asteroid->yCoord - size_first_asteroid <= bullet->yCoord) && (asteroid->yCoord + size_first_asteroid >= bullet->yCoord)) { //если пуля попала в диапазон ширины астероида
+		if ((asteroid->xCoord - size_first_asteroid <= bullet->xCoord) && (asteroid->xCoord >= bullet->xCoord)) { // и их координаты по х примерно равны
+			//puli[j][1] = 20000; // отправляем их обоих за карту
+			delete_node(bullet, &bullets_tree);
 			//asteroid->yCoord = 1000;
 			delete_node(asteroid, &asteroid_tree);
 			//remove_node(asteroid);
@@ -730,24 +775,29 @@ void check_hitted_asteroid_help(Object* asteroid, int j) {
 			return;
 		}
 		else {
-			check_hitted_asteroid_help(asteroid->pRight, j);
-			check_hitted_asteroid_help(asteroid->pLeft, j);
+			check_hitted_asteroid_help(asteroid->pRight, bullet);
+			check_hitted_asteroid_help(asteroid->pLeft, bullet);
 		}
 	}
 
-	else if ((asteroid->yCoord - size_first_asteroid < puli[j][1])) { //если пуля попала в диапазон ширины астероида {
-		check_hitted_asteroid_help(asteroid->pRight, j);
+	else if ((asteroid->yCoord - size_first_asteroid < bullet->yCoord)) { //если пуля попала в диапазон ширины астероида {
+		check_hitted_asteroid_help(asteroid->pRight, bullet);
 	}
 	else {
-		check_hitted_asteroid_help(asteroid->pLeft, j);
+		check_hitted_asteroid_help(asteroid->pLeft, bullet);
 	}
 
 }
 
-void check_hitted_asteroid() {
-	for (int j = 0; j < MAX_BULLETS; j++) {
-		check_hitted_asteroid_help(asteroid_tree, j);
-	}
+// надо передавать дерево пуль, т.к. в главной функции именно по ним идёт рекурсия
+void check_hitted_asteroid(Object* p) {
+
+	if (p == NULL) return;
+	check_hitted_asteroid(p->pLeft);
+	check_hitted_asteroid(p->pRight);
+
+	// собственно сама проверка на столкновение
+	check_hitted_asteroid_help(asteroid_tree, p);
 }
 
 /*
@@ -940,7 +990,7 @@ void display() {
 	if (difficulty > 0) { // на переднем плане рисуется то, что здесь стоит последним
 
 		draw_stars();
-		bullet();
+		draw_bullets(bullets_tree);
 		draw_asteroids(asteroid_tree);
 		draw_bonuses(bonusTree);
 
@@ -949,7 +999,7 @@ void display() {
 		creating_objects();
 		check_hitted_spaceship(asteroid_tree);
 		check_taken_bonus(bonusTree);
-		check_hitted_asteroid();
+		check_hitted_asteroid(bullets_tree);
 
 		interface();
 	}
