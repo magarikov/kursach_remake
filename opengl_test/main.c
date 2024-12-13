@@ -56,10 +56,8 @@ double move = 10; //шаг перемещения
 double size_of_spaceship = 7;
 
 //количество пуль и координаты каждой из них.
-#define MAX_BULLETS 50
 int num_of_bullets = 0;
 Object* bullets_tree = NULL;
-double puli[MAX_BULLETS][2]; //первое - координата по х, второе - по y
 double speed_of_bullet = 1.5;
 time_t last_shooted_bullet; // время (будет создаваться как clock()) последней выстреленной пули
 // нужно, чтобы сделать так, чтоб пули не летели одним потоком (ограничить количество пуль в ед. времени)
@@ -70,17 +68,10 @@ Object* asteroid_tree = NULL;
 int num_of_asteroids = 0;
 double speed_of_asteroids = 2.0; // коэффицент изменения скорости астероидов
 double size_first_asteroid = 7; // 7
-int posibility_of_spawn_asteroids = 30; // меняется в spaceship_move (в будующем может быть в клавиатуре)
-
-/*
-#define MAX_ASTEROIDS 100 // количество астероидов, которые могут существовать одновременно
-double asteroids[MAX_ASTEROIDS][4]; //первые два значения - координата по x и y, 3 - скорость (у каждой она будет своя), 4 - тип астероида
-*/
+int posibility_of_spawn_asteroids = 30; // меняется в keyboard (в будующем может быть в клавиатуре)
 
 // БОНУСЫ
-#define MAX_BONUS 10 // Максимальное количество одновременно существующих бонусов
 #define CAN_TAKE_NEW_BONUS 100
-int num_of_bonus = 0; // Текущее количество бонусов
 int posibility_of_spawn_bonus = 100;
 time_t last_taken_bonus;
 double speed_of_bonus = 1;
@@ -210,7 +201,6 @@ Object* add_to_tree(Object* tree, Object item) {
 // Иначе записывает вместо текущих значений, значения самого правого элемента из левого поддерева
 // затем удаляет этот элемент
 
-
 void delete_node(Object* object, Object** tree) {
 	Object* p;
 	//printf("\ndelete %f %f\n", object->yCoord, object->xCoord);
@@ -231,7 +221,7 @@ void delete_node(Object* object, Object** tree) {
 		return;
 	}
 	else if (object->pLeft == NULL) {
-		printf("2\n");
+		//printf("2\n");
 		if (object == *tree) {
 			*tree = object->pRight;
 			object->Parent = NULL;
@@ -250,7 +240,7 @@ void delete_node(Object* object, Object** tree) {
 		return;
 	}
 	else if (object->pRight == NULL) {
-		printf("3\n");
+		//printf("3\n");
 		if (object == *tree) {
 			*tree = object->pLeft;
 			object->Parent = NULL;
@@ -270,7 +260,7 @@ void delete_node(Object* object, Object** tree) {
 
 	}
 	else {
-		printf("4\n");
+		//printf("4\n");
 		p = object->pLeft;
 		int flag = 0; // заходили ли мы в цикл - двигались ли вправо
 		// важно знать, иначе сторона ребенка неправильно обновится
@@ -326,8 +316,6 @@ void draw_asteroids(Object* p) {
 }
 
 void draw_bonuses(Object* p) {
-
-	//if (num_of_bonus > MAX_BONUS - 1) num_of_bonus = 0; 
 
 	if (p == NULL) return;
 
@@ -507,20 +495,7 @@ void spaceship() {
 
 }
 
-void bullet() { // пуля
-	
-	if (num_of_bullets > MAX_BULLETS) num_of_bullets = 0; //когда пуль в памяти более 100, записываем координаты новых в начало
-	for (int i = 0; i < MAX_BULLETS; i++) {  //берет координаты каждой пули, добавляет к ним скорость и рисует их. 
-		puli[i][0] += speed_of_bullet;
-		glLineWidth(5);
-		glBegin(GL_LINES);
-		glColor3f(1, 0.4, 0); glVertex3f(puli[i][0], puli[i][1], 0);
-		glColor3f(1, 1, 0); glVertex3f(puli[i][0] - 6, puli[i][1], 0);
-		glEnd();
-	}
-}
-
-void spaceship_move(unsigned char key, int x, int y) {  //перемещение корабля
+void keyboard(unsigned char key, int x, int y) {  //перемещение корабля
 	if ((key == 'w') || (key == 'W') || (key == '8')) {
 		if ((difficulty == 0) && (choose > 1)) choose--;  //перемещает черный прямоугольник
 		if (yCoord > -70) yCoord -= move;  // -= т.к. перевернута система координат (а это нужно для надписей)
@@ -800,24 +775,6 @@ void check_hitted_asteroid(Object* p) {
 	check_hitted_asteroid_help(asteroid_tree, p);
 }
 
-/*
-void check_hitted_asteroid() { // проверяет попала ли пуля в астероид. если да - отправляет его за карту
-	for (int i = 0; i < MAX_ASTEROIDS; i++) {
-		for (int j = 0; j < MAX_BULLETS; j++) {
-			if ((asteroids[i][1] - size_first_asteroid <= puli[j][1]) && (asteroids[i][1] + size_first_asteroid >= puli[j][1])) { //если пуля попала в диапазон ширины астероида
-				if ((asteroids[i][0] - size_first_asteroid <= puli[j][0]) && (asteroids[i][0] >= puli[j][0])) { // и их координаты по х примерно равны
-					puli[j][1] = 20000; // отправляем их обоих за карту
-					asteroids[i][1] = 10000;
-					score++;
-					if (time_x2_bonus > 0) score++;
-				}
-			}
-		}
-	}
-}
-*/
-
-
 void check_hitted_spaceship(Object* asteroid) {
 	if (asteroid == NULL) return;
 	if ((asteroid->yCoord - size_first_asteroid - size_of_spaceship <= yCoord) &&
@@ -834,8 +791,8 @@ void check_hitted_spaceship(Object* asteroid) {
 					lives = 3;
 					//for (int i = 0; i < MAX_BONUS; i++) bonuses[i][1] = 50000; // same situation
 					for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
-					for (int i = 0; i < MAX_BULLETS; i++) puli[i][1] = 20000; // same situation
-					//for (int i = 0; i < MAX_ASTEROIDS; i++) asteroids[i][1] = 10000; // same situation
+
+					bullets_tree = NULL;
 					asteroid_tree = NULL;
 					bonusTree = NULL;
 				}
@@ -855,92 +812,6 @@ void check_hitted_spaceship(Object* asteroid) {
 	}
 }
 
-/*
-void check_hitted_spaceship() {
-	Object* p = asteroid_tree;
-	while (p != NULL) {
-		if ((p->yCoord - size_first_asteroid - size_of_spaceship <= yCoord) &&
-			(p->yCoord + size_first_asteroid + size_of_spaceship >= yCoord)) {
-			if ((p->xCoord - size_of_spaceship <= xCoord) && (p->xCoord + size_of_spaceship * 4 >= xCoord)) {
-				if (clock() - last_lost_life > REGENIGATION_TIME) { // 2500 тиков - время форы перед новым снятием сердца
-					lives--;
-					last_lost_life = clock();
-					if (lives == 0) {
-						difficulty = -1; // если жизни кончились - проигрываем :)
-						choose = 0; // чтоб нельзя было возродится нажав enter
-						score = 0;
-						lives = 3;
-						for (int i = 0; i < MAX_BONUS; i++) bonuses[i][1] = 50000; // same situation
-						for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
-						for (int i = 0; i < MAX_BULLETS; i++) puli[i][1] = 20000; // same situation
-						//for (int i = 0; i < MAX_ASTEROIDS; i++) asteroids[i][1] = 10000; // same situation
-					}
-				}
-			}
-			else {  // если на выбранном y не совпали х
-
-			}
-		}
-		else if (p->yCoord - size_first_asteroid - size_of_spaceship < yCoord) {
-			p = p->pRight;
-		}
-		else {
-			p = p->pLeft;
-		}
-	}
-	*/
-
-	/*
-	for (int i = 0; i < MAX_ASTEROIDS; i++) {
-		if ((asteroids[i][1] - size_first_asteroid - size_of_spaceship <= yCoord) &&
-			(asteroids[i][1] + size_first_asteroid + size_of_spaceship >= yCoord)) {
-			if ((asteroids[i][0] - size_of_spaceship <= xCoord) && (asteroids[i][0] + size_of_spaceship * 4 >= xCoord)) {
-				if (clock() - last_lost_life > REGENIGATION_TIME) { // 2500 тиков - время форы перед новым снятием сердца
-					lives--;
-					last_lost_life = clock();
-					if (lives == 0) {
-						difficulty = -1; // если жизни кончились - проигрываем :)
-						choose = 0; // чтоб нельзя было возродится нажав enter
-						score = 0;
-						lives = 3;
-						for (int i = 0; i < MAX_BONUS; i++) bonuses[i][1] = 50000; // same situation
-						for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
-						for (int i = 0; i < MAX_BULLETS; i++) puli[i][1] = 20000; // same situation
-						for (int i = 0; i < MAX_ASTEROIDS; i++) asteroids[i][1] = 10000; // same situation
-					}
-				}
-			}
-		}
-	}
-	*/
-
-
-	/* void check_given_bonus() {
-
-
-
-		for (int i = 0; i < MAX_BONUS; i++) {
-			if ((bonuses[i][1] - size_of_bonus - size_of_spaceship <= yCoord) &&
-				(bonuses[i][1] + size_of_bonus + size_of_spaceship >= yCoord)) {
-				if ((bonuses[i][0] - size_of_spaceship <= xCoord) && (bonuses[i][0] + size_of_spaceship * 4 >= xCoord)) {
-					if (clock() - last_taken_bonus > CAN_TAKE_NEW_BONUS) {
-						if (bonuses[i][3] == 1) { // доп жизни
-							if (lives < 3) lives++;
-							last_taken_bonus = clock();
-							bonuses[i][1] = 50000;
-						}
-						if (bonuses[i][3] == 2) { // мультипликатор очков
-							time_x2_bonus = 4000;  // время действия бонуса
-							last_taken_bonus = clock();
-							bonuses[i][1] = 50000;
-						}
-					}
-				}
-			}
-		}
-
-	} */
-
 void creating_objects() {
 
 	// пытаемся создать астероид
@@ -953,33 +824,25 @@ void creating_objects() {
 		item.time_of_create = clock();
 		asteroid_tree = add_to_tree(asteroid_tree, item);
 		num_of_asteroids++;
-		printf("%f\n", y);
+
 	}
 
 	double tmp = (rand() % posibility_of_spawn_bonus); // Выбираем что появится - жизнь или x2
 
 	if (tmp == 9 || tmp == 8) {   //выбираем случайное время, при достижении которого генерируется звезда. чем больше значение после %, тем ниже вероятность появления
 
-		/* double y = ((rand() % 18) * 10) - 75; //выбирается случайное значение высоты для появившейся звезды. 75 (вместо 90) - немного сдвигаем вниз, чтоб не залезали на интерфейс
-		bonuses[num_of_bonus][0] = 100;  //начальная координата по х. спавним справа от экрана
-		bonuses[num_of_bonus][1] = y;
-		bonuses[num_of_bonus][2] = speed_of_bonus;  // скорость. добавляем константу, чтоб те звезды, у которых скорость выпала 0 тоже двигались.
-		bonuses[num_of_bonus][3] = rand() % 3;
-		num_of_bonus++; */
-
 		Object item;
 
-		double y = ((rand() % 18) * 10) - 75;
-		item.xCoord = 100;
+		double y = ((rand() % 18) * 10) - 75;  //выбирается случайное значение высоты для появившейся звезды. 75 (вместо 90) - немного сдвигаем вниз, чтоб не залезали на интерфейс
+		item.xCoord = 100;  //начальная координата по х. спавним справа от экрана
 		item.yCoord = y;
-		item.speed = speed_of_bonus;
+		item.speed = speed_of_bonus;  // скорость. добавляем константу, чтоб те звезды, у которых скорость выпала 0 тоже двигались.
 		item.time_of_create = clock();
 
 		if (tmp == 9) item.type = 1; // Определяем тип бонуса
 		else item.type = 2;
 
 		bonusTree = add_to_tree(bonusTree, item);
-		num_of_bonus++;
 
 
 	}
@@ -1024,13 +887,11 @@ int main(int argc, char** argv) {
 	// ВАЖНО ОТПРАВЛЯТЬ ВСЕХ НА РАЗНУЮ ВЫСОТУ!
 	//for (int i = 0; i < MAX_BONUS; i++) bonuses[i][1] = 50000; // same situation
 	for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
-	for (int i = 0; i < MAX_BULLETS; i++) puli[i][1] = 20000; // same situation
-	//for (int i = 0; i < MAX_ASTEROIDS; i++) asteroids[i][1] = 10000; // same situation
 
 	last_shooted_bullet = clock();
 	last_lost_life = -REGENIGATION_TIME; // чтоб не моргал в начале
 
-	srand(NULL);
+	srand(time(NULL));
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
@@ -1041,7 +902,7 @@ int main(int argc, char** argv) {
 
 	if (difficulty == 0) glScalef(0.01, -0.01, 0.1); //масштабируем текст заранее
 	glutDisplayFunc(display);
-	glutKeyboardFunc(spaceship_move);
+	glutKeyboardFunc(keyboard);
 
 	glutTimerFunc(0, time_my, 0);
 
