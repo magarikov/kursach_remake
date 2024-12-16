@@ -44,7 +44,8 @@ typedef struct Object {
 
 // звезды - фон
 #define MAX_STARS 300 // количество звезд, которые могут существовать одновременно
-Object stars[MAX_STARS]; // нет необходимости делать дерево, т.к. нет поиска
+//Object stars[MAX_STARS];
+Object* stars_tree = NULL;
 int num_of_stars = 0;
 double speed_of_star = 1.0; // коэффицент изменения скорости звезд
 //double stars[MAX_STARS][3]; //первые два значения - координата по x и y, третье - скорость (у каждой она будет своя)
@@ -403,23 +404,23 @@ void draw_bonuses(Object* p) {
 
 }
 
-void draw_stars() { //ф-я которая создаёт звезды на фоне.
-	if ((rand() % 10) == 9) {   //выбираем случайное время, при достижении которого генерируется звезда. чем больше значение после %, тем ниже вероятность появления
-		double y = ((rand() % 18) * 10) - 75; //выбирается случайное значение высоты для появившейся звезды. 75 (вместо 90) - немного сдвигаем вниз, чтоб не залезали на интерфейс
-		stars[num_of_stars].xCoord = 100;  //начальная координата по х. спавним справа от экрана
-		stars[num_of_stars].yCoord = y;
-		stars[num_of_stars].speed = (speed_of_star * (rand() % 10)) / 10 + 0.1;  // скорость. добавляем константу, чтоб те звезды, у которых скорость выпала 0 тоже двигались.
-		num_of_stars++;
-	}
-	if (num_of_stars > MAX_STARS - 1) num_of_stars = 0; //когда пуль в памяти более 10000, записываем координаты новых в начало
-	for (int i = 0; i < MAX_STARS; i++) {  // - сколько звезд может появиться до того, как на места старых, начнут вставать новые.  
-		glLineWidth(5);
-		stars[i].xCoord -= stars[i].speed;
-		glBegin(GL_LINES);
-		glColor3f(0.8, 0.8, 0.8); glVertex3f(stars[i].xCoord, stars[i].yCoord, 0);
-		glColor3f(0.08, 0.08, 0.13); glVertex3f(stars[i].xCoord + 8, stars[i].yCoord, 0); // +5 для их растягивания вдоль x
-		glEnd();
-	}
+void draw_stars(Object* p) { //ф-я которая создаёт звезды на фоне.
+
+	if (p == NULL) return;
+
+	draw_stars(p->pLeft);
+	draw_stars(p->pRight);
+
+	p->xCoord -= p->speed;
+
+	glLineWidth(5);
+	glBegin(GL_LINES);
+	glColor3f(0.8, 0.8, 0.8); glVertex3f(p->xCoord, p->yCoord, 0);
+	glColor3f(0.08, 0.08, 0.13); glVertex3f(p->xCoord + 8, p->yCoord, 0); // +5 для их растягивания вдоль x
+	glEnd();
+
+	if (p->xCoord < -110) delete_node(p, &stars_tree);
+
 }
 
 void draw_bullets(Object* p) {
@@ -790,7 +791,7 @@ void check_hitted_spaceship(Object* asteroid) {
 					score = 0;
 					lives = 3;
 					//for (int i = 0; i < MAX_BONUS; i++) bonuses[i][1] = 50000; // same situation
-					for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
+					//for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
 
 					bullets_tree = NULL;
 					asteroid_tree = NULL;
@@ -846,13 +847,28 @@ void creating_objects() {
 
 
 	}
+
+	if ((rand() % 10) == 9) {
+
+		Object item;
+
+		double y = ((rand() % 18) * 10) - 75;
+
+		item.xCoord = 100;
+		item.yCoord = y;
+		item.speed = speed_of_star;
+
+		stars_tree = add_to_tree(stars_tree, item);
+
+	}
 }
 
 void display() {
+
 	glClear(GL_COLOR_BUFFER_BIT);
 	if (difficulty > 0) { // на переднем плане рисуется то, что здесь стоит последним
 
-		draw_stars();
+		draw_stars(stars_tree);
 		draw_bullets(bullets_tree);
 		draw_asteroids(asteroid_tree);
 		draw_bonuses(bonusTree);
@@ -886,7 +902,19 @@ void time_my(int num) {
 int main(int argc, char** argv) {
 	// ВАЖНО ОТПРАВЛЯТЬ ВСЕХ НА РАЗНУЮ ВЫСОТУ!
 	//for (int i = 0; i < MAX_BONUS; i++) bonuses[i][1] = 50000; // same situation
-	for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
+	//for (int i = 0; i < MAX_STARS; i++) stars[i].yCoord = 30000; //в начале все звезды стоят по центру, т.к. в массиве нули. отрправляем их подальше
+
+	for (int i = 0; i < 20; i++) {
+
+		Object item;
+		item.xCoord = 100 - rand() % 90;
+		double y = ((rand() % 18) * 10) - 75;
+		item.yCoord = y;
+		item.speed = speed_of_star;
+
+		stars_tree = add_to_tree(stars_tree, item);
+
+	}
 
 	last_shooted_bullet = clock();
 	last_lost_life = -REGENIGATION_TIME; // чтоб не моргал в начале
